@@ -3,6 +3,7 @@ title: "Práctica 9 - PLN"
 author: 
 "Carlos Herranz Bascuñan" (<carlos.herranzb@alumnos.upm.es>)
 "Alberto Barreiro Tasende" (<alberto.barreiro@alumnos.upm.es>)
+"Raquel Cassinello Montes" (<r.cmontes@alumnos.upm.es>)
 date: "2026-01-12"
 group: 9
 output:
@@ -195,6 +196,7 @@ print("Funciono")
 
 Parte 2 - Web scraping individual de artículos y limpieza del texto
 
+
 En esta parte se recorre la tabla de URLs (generada en la Parte 1) para visitar cada artículo del Código Penal en la web de Conceptos Jurídicos.  
 Para cada artículo se extrae el texto normativo, se limpia eliminando contenido explicativo/no normativo, se insertan saltos de línea para mejorar la legibilidad y se genera:
 
@@ -289,3 +291,68 @@ articulos_limpios <- articulos %>%
 saveRDS(articulos_limpios, "articulos_limpios.rds")
 write.csv(articulos_limpios, "articulos_limpios.csv", row.names = FALSE)
 ```
+
+
+Parte 3 - Construcción del corpus quanteda y docvars
+
+
+Leemos el fichero articulos_limpios.csv en un data.frame llamado articulos. Cada fila representa un artículo del Código Penal y contiene, entre otras, las columnas con su texto y su estructura (libro, título, capítulo, sección, nº de artículo, etc.). Usamos stringsAsFactors = FALSE para que las columnas de texto no se conviertan automáticamente en factores (evita problemas al concatenar y limpiar cadenas).
+```{r}
+articulos <- read.csv("articulos_limpios.csv", stringsAsFactors = FALSE)
+```
+
+En quanteda, cada documento del corpus necesita un identificador (docname). Aquí lo construimos con información jerárquica y hacemos limpieza porque en datos reales puede haber campos vacíos:
+```{r}
+articulos <- articulos %>%
+  mutate(
+    docname_base = paste(
+      libro,
+      titulo,
+      capitulo,
+      seccion,
+      paste("Artículo", articulo),
+      sep = "."
+    ),
+    docname_base = str_replace_all(docname_base, "\\bNA\\b\\.?", ""),
+    docname_base = str_replace_all(docname_base, "\\.+", "."),
+    docname_base = str_replace_all(docname_base, "^\\.|\\.$", ""),
+    docname = make.unique(docname_base)
+  )
+```
+
+Ahora construimos el corpus quanteda
+```{r}
+corpus_cp <- corpus(
+  x = articulos$texto_articulo,
+  docnames = articulos$docname
+)
+```
+
+Añadimos metadatos a cada documento del corpus (como “columnas asociadas” a los documentos). Esto permite luego hacer análisis filtrando o agrupando por estructura del Código Penal
+```{r}
+docvars(corpus_cp, "libro")    <- articulos$libro
+docvars(corpus_cp, "titulo")   <- articulos$titulo
+docvars(corpus_cp, "capitulo") <- articulos$capitulo
+docvars(corpus_cp, "seccion")  <- articulos$seccion
+docvars(corpus_cp, "articulo") <- articulos$articulo
+docvars(corpus_cp, "contexto") <- articulos$contexto
+```
+
+Comprobamos con summary:
+```{r}
+summary(corpus_cp)
+```
+
+
+Por último, guardamos el corpus.
+```{r}
+saveRDS(corpus_cp, "corpus_codigo_penal.rds")
+
+message("OK: corpus_codigo_penal.rds generado correctamente")
+```
+
+
+Reparto de tareas:
+- Carlos Herranz Bascuñan: Parte 1 (100%)
+- Alberto Barreiro Tasende: Parte 2 (100%)
+- Raquel Casinello Montes: Parte 3 (100%)
